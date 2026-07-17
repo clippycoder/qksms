@@ -163,6 +163,7 @@ class MessagesAdapter @Inject constructor(
         view.body.forwardTouches(view)
 
         return QkViewHolder(view).apply {
+            view.isFocusable = true
             view.setOnClickListener {
                 val message = getItem(adapterPosition) ?: return@setOnClickListener
                 when (toggleSelection(message.id, false)) {

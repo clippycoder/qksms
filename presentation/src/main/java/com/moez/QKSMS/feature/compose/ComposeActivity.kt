@@ -33,6 +33,7 @@ import android.provider.MediaStore
 import android.text.format.DateFormat
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.view.isVisible
@@ -55,6 +56,7 @@ import com.moez.QKSMS.common.util.extensions.setBackgroundTint
 import com.moez.QKSMS.common.util.extensions.setTint
 import com.moez.QKSMS.common.util.extensions.setVisible
 import com.moez.QKSMS.common.util.extensions.showKeyboard
+import timber.log.Timber
 import com.moez.QKSMS.feature.compose.editing.ChipsAdapter
 import com.moez.QKSMS.feature.contacts.ContactsActivity
 import com.moez.QKSMS.model.Attachment
@@ -119,6 +121,18 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     private val viewModel by lazy { ViewModelProviders.of(this, viewModelFactory)[ComposeViewModel::class.java] }
 
     private var cameraDestination: Uri? = null
+    private var lastState: ComposeState? = null
+    private var initialFocusDone = false
+    private var lastThreadId = 0L
+    private val hasCamera by lazy {
+        try {
+            val cameraManager = getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+            cameraManager.cameraIdList.isNotEmpty()
+        } catch (e: Exception) {
+            timber.log.Timber.e(e, "Failed to get camera list")
+            packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -127,8 +141,10 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         showBackButton(true)
         viewModel.bindView(this)
 
-        contentView.layoutTransition = LayoutTransition().apply {
-            disableTransitionType(LayoutTransition.CHANGING)
+        contentView.layoutTransition = android.animation.LayoutTransition().apply {
+            disableTransitionType(android.animation.LayoutTransition.CHANGING)
+            disableTransitionType(android.animation.LayoutTransition.CHANGE_APPEARING)
+            disableTransitionType(android.animation.LayoutTransition.CHANGE_DISAPPEARING)
         }
 
         chipsAdapter.view = chips
@@ -156,9 +172,26 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         window.callback = ComposeWindowCallback(window.callback, this)
 
+        message.setOnFocusChangeListener { _, hasFocus ->
+            val currentFocus = window.currentFocus?.javaClass?.simpleName ?: "null"
+            Timber.d("FOCUS-DIAG message.hasFocus=%b currentFocus=%s", hasFocus, currentFocus)
+            if (!hasFocus) {
+                // Capture the call stack to find what caused the focus drop
+                val stack = Thread.currentThread().stackTrace
+                    .drop(2).take(10)
+                    .joinToString("\n  ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
+                Timber.d("FOCUS-DIAG message lost focus. Stack:\n  %s", stack)
+            }
+        }
+
         // These theme attributes don't apply themselves on API 21
         if (Build.VERSION.SDK_INT <= 22) {
             messageBackground.setBackgroundTint(resolveThemeColor(R.attr.bubbleColor))
+        }
+
+        // Prevent D-pad focus from getting stuck on menu labels or background
+        listOf(cameraLabel, galleryLabel, scheduleLabel, contactLabel, attachingBackground).forEach { 
+            it.isFocusable = false 
         }
     }
 
@@ -173,10 +206,22 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun render(state: ComposeState) {
+        lastState = state
         if (state.hasError) {
             finish()
             return
         }
+
+        if (!initialFocusDone && state.threadId > 0 && !state.loading) {
+            initialFocusDone = true
+            message.post {
+                if (!message.hasFocus()) {
+                    message.requestFocus()
+                    showKeyboard()
+                }
+            }
+        }
+        lastThreadId = state.threadId
 
         threadId.onNext(state.threadId)
 
@@ -227,8 +272,74 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         attachments.setVisible(state.attachments.isNotEmpty())
         attachmentAdapter.data = state.attachments
 
-        attach.animate().rotation(if (state.attaching) 135f else 0f).start()
-        attaching.isVisible = state.attaching
+        val wasAttaching = attaching.visibility == View.VISIBLE
+        if (wasAttaching != state.attaching) {
+            attach.animate().rotation(if (state.attaching) 135f else 0f).start()
+            attaching.isVisible = state.attaching
+        }
+
+        // Manage camera option visibility manually since it was removed from the attaching Group
+        val showCamera = hasCamera && state.attaching
+        camera.isVisible = showCamera
+        cameraLabel.isVisible = showCamera
+        
+        if (state.attaching) {
+            // Build the focusable list dynamically (camera may be hidden)
+            val options = listOfNotNull(
+                if (hasCamera) camera else null,
+                gallery,
+                schedule,
+                contact
+            ) // ordered bottom-to-top as they appear on screen
+
+            // Wire up/down navigation to cycle only within the menu
+            for (i in options.indices) {
+                val view = options[i]
+                val above = options.getOrNull(i + 1) ?: attach
+                val below = options.getOrNull(i - 1) ?: attach
+                view.nextFocusUpId   = above.id
+                view.nextFocusDownId = below.id
+                view.nextFocusLeftId = view.id   // block left escape
+                view.nextFocusRightId = view.id  // block right escape
+            }
+            // attach (X) cycles back into the bottom-most option
+            attach.nextFocusUpId   = options.first().id
+            attach.nextFocusDownId = options.last().id
+            attach.nextFocusLeftId = attach.id
+            attach.nextFocusRightId = attach.id
+        } else {
+            // Reset all next-focus overrides
+            listOf(camera, gallery, schedule, contact, attach).forEach { v ->
+                v.nextFocusUpId   = View.NO_ID
+                v.nextFocusDownId = View.NO_ID
+                v.nextFocusLeftId = View.NO_ID
+                v.nextFocusRightId = View.NO_ID
+            }
+        }
+        
+        if (state.attaching && !wasAttaching) {
+            // Disable focus on background elements to trap D-pad in the menu
+            message.isFocusable = false
+            message.isFocusableInTouchMode = false
+            send.isFocusable = false
+            sim.isFocusable = false
+            messageList.descendantFocusability = android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS
+
+            // Focus the bottom-most visible option
+            (if (hasCamera) camera else gallery).requestFocus()
+        } else if (!state.attaching && wasAttaching) {
+            // Restore focusability when menu closes
+            message.isFocusable = true
+            message.isFocusableInTouchMode = true
+            send.isFocusable = true
+            sim.isFocusable = true
+            messageList.descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
+
+            message.post {
+                message.requestFocus()
+                showKeyboard()
+            }
+        }
 
         counter.text = state.remaining
         counter.setVisible(counter.text.isNotBlank())
@@ -399,4 +510,57 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
     override fun onBackPressed() = backPressedIntent.onNext(Unit)
 
+    override fun onCsk() {
+        val state = lastState ?: return
+        val focus = window.currentFocus
+        if (state.selectedMessages > 0) {
+            toolbar?.menu?.findItem(R.id.delete)?.let { onOptionsItemSelected(it) }
+        } else if (focus != null && focus != messageList && focus.isClickable && focus != message) {
+            focus.performClick()
+        } else if (message.hasFocus()) {
+            if (send.isEnabled) {
+                send.performClick()
+            }
+        } else {
+            message.requestFocus()
+            showKeyboard()
+        }
+    }
+
+    override fun onSk1() {
+        val state = lastState ?: return
+        if (state.selectedMessages > 0) {
+            clearSelection()
+        } else if (!message.hasFocus()) {
+            attach.performClick()
+        }
+    }
+
+    override fun onSk2() {}
+
+    override fun refreshSoftkeys() {
+        if (!kyoceraHelper.isReady()) return
+        val state = lastState ?: return
+
+        when {
+            state.selectedMessages > 0 -> kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                getString(R.string.sk_delete),
+                getString(R.string.sk_deselect),
+                getString(R.string.sk_options)
+            )
+            state.attaching -> kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                getString(R.string.sk_select),
+                "",
+                ""
+            )
+            else -> kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                getString(R.string.sk_ok),
+                "",
+                ""
+            )
+        }
+    }
 }

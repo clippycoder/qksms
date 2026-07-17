@@ -109,6 +109,7 @@
         <item name="android:gravity">center_vertical</item>
         <item name="android:paddingStart">16dp</item>
         <item name="android:paddingEnd">16dp</item>
+        <item name="android:focusable">true</item>
     </style>
 
     <style name="DrawerText">

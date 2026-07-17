@@ -489,4 +489,19 @@
         <item>That\'s okay</item>
     </string-array>
 
+    <!-- Kyocera Softkey Labels -->
+    <string name="sk_select">Select</string>
+    <string name="sk_compose">Compose</string>
+    <string name="sk_open">Open</string>
+    <string name="sk_menu">Menu</string>
+    <string name="sk_options">Options</string>
+    <string name="sk_back">Back</string>
+    <string name="sk_attach">More</string>
+    <string name="sk_write">Write</string>
+    <string name="sk_delete">Delete</string>
+    <string name="sk_deselect">Deselect</string>
+    <string name="sk_close">Close</string>
+    <string name="sk_send">Send</string>
+    <string name="sk_search">Search</string>
+    <string name="sk_ok">OK</string>
 </resources>

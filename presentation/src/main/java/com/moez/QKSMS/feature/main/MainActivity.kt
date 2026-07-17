@@ -85,7 +85,7 @@ class MainActivity : QkThemedActivity(), MainView {
     override val onNewIntentIntent: Subject<Intent> = PublishSubject.create()
     override val activityResumedIntent: Subject<Boolean> = PublishSubject.create()
     override val queryChangedIntent by lazy { toolbarSearch.textChanges() }
-    override val composeIntent by lazy { compose.clicks() }
+    override val composeIntent by lazy { compose.clicks().doOnNext { android.widget.Toast.makeText(this, "Loading...", android.widget.Toast.LENGTH_SHORT).show() } }
     override val drawerOpenIntent: Observable<Boolean> by lazy {
         drawerLayout
                 .drawerOpen(Gravity.START)
@@ -124,6 +124,7 @@ class MainActivity : QkThemedActivity(), MainView {
     private val snackbar by lazy { findViewById<View>(R.id.snackbar) }
     private val syncing by lazy { findViewById<View>(R.id.syncing) }
     private val backPressedSubject: Subject<NavItem> = PublishSubject.create()
+    private var lastState: MainState? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AndroidInjection.inject(this)
@@ -131,6 +132,25 @@ class MainActivity : QkThemedActivity(), MainView {
         setContentView(R.layout.main_activity)
         viewModel.bindView(this)
         onNewIntentIntent.onNext(intent)
+
+        drawerOpenIntent
+                .autoDisposable(scope())
+                .subscribe { isOpen ->
+                    refreshSoftkeys()
+                    if (isOpen) {
+                        drawerLayout.post {
+                            when (lastState?.page) {
+                                is Inbox -> inbox.requestFocus()
+                                is Archived -> archived.requestFocus()
+                                else -> inbox.requestFocus()
+                            }
+                        }
+                    }
+                }
+
+        toolbarSearch.setOnFocusChangeListener { _, _ ->
+            refreshSoftkeys()
+        }
 
         (snackbar as? ViewStub)?.setOnInflateListener { _, _ ->
             snackbarButton.clicks()
@@ -151,6 +171,26 @@ class MainActivity : QkThemedActivity(), MainView {
 
         itemTouchCallback.adapter = conversationsAdapter
         conversationsAdapter.autoScrollToStart(recyclerView)
+        conversationsAdapter.registerAdapterDataObserver(object : androidx.recyclerview.widget.RecyclerView.AdapterDataObserver() {
+            var initialFocusSet = false
+            private fun handleUpdate() {
+                refreshSoftkeys()
+                if (!initialFocusSet && conversationsAdapter.itemCount > 0) {
+                    initialFocusSet = true
+                    recyclerView.post {
+                        // Grab focus for the first conversation unless the user
+                        // has already explicitly navigated into the list.
+                        if (!recyclerView.hasFocus()) {
+                            val child = recyclerView.layoutManager?.getChildAt(0)
+                            child?.requestFocus() ?: recyclerView.requestFocus()
+                        }
+                    }
+                }
+            }
+            override fun onChanged() = handleUpdate()
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = handleUpdate()
+            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = handleUpdate()
+        })
 
         // Don't allow clicks to pass through the drawer layout
         drawer.clicks().autoDisposable(scope()).subscribe()
@@ -227,7 +267,14 @@ class MainActivity : QkThemedActivity(), MainView {
             else -> 0
         }
 
+        val wasSearching = toolbarSearch.visibility == View.VISIBLE
         toolbarSearch.setVisible(state.page is Inbox && state.page.selected == 0 || state.page is Searching)
+        
+        // If the search bar has focus but we are not actively searching, 
+        // move focus to the conversation list (especially important on app startup)
+        if (toolbarSearch.hasFocus() && state.page !is Searching) {
+            recyclerView.requestFocus()
+        }
         toolbarTitle.setVisible(toolbarSearch.visibility != View.VISIBLE)
 
         toolbar.menu.findItem(R.id.archive)?.isVisible = state.page is Inbox && selectedConversations != 0
@@ -247,7 +294,7 @@ class MainActivity : QkThemedActivity(), MainView {
         plusBanner.isVisible = !state.upgraded
         rateLayout.setVisible(state.showRating)
 
-        compose.setVisible(state.page is Inbox || state.page is Archived)
+        compose.visibility = View.GONE
         conversationsAdapter.emptyView = empty.takeIf { state.page is Inbox || state.page is Archived }
         searchAdapter.emptyView = empty.takeIf { state.page is Searching }
 
@@ -325,6 +372,8 @@ class MainActivity : QkThemedActivity(), MainView {
                 snackbarButton?.setText(R.string.main_permission_allow)
             }
         }
+        lastState = state
+        refreshSoftkeys()
     }
 
     override fun onResume() {
@@ -412,6 +461,137 @@ class MainActivity : QkThemedActivity(), MainView {
 
     override fun onBackPressed() {
         backPressedSubject.onNext(NavItem.BACK)
+    }
+
+    override fun onCsk() {
+        val state = lastState ?: return
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            window.currentFocus?.performClick()
+            return
+        }
+
+        val selectedConversations = when (state.page) {
+            is Inbox -> state.page.selected
+            is Archived -> state.page.selected
+            else -> 0
+        }
+
+        if (selectedConversations > 0) {
+            toolbar?.menu?.findItem(R.id.delete)?.let { onOptionsItemSelected(it) }
+        } else if (toolbarSearch != null && toolbarSearch.hasFocus()) {
+            toolbarSearch.performClick()
+            val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.showSoftInput(toolbarSearch, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        } else {
+            val focus = window.currentFocus
+            if (focus != null) {
+                if (!focus.performClick()) {
+                    focus.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_CENTER))
+                    focus.dispatchKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_DPAD_CENTER))
+                }
+            }
+        }
+    }
+
+    override fun onSk1() {
+        val state = lastState ?: return
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            return
+        }
+
+        val selectedConversations = when (state.page) {
+            is Inbox -> state.page.selected
+            is Archived -> state.page.selected
+            else -> 0
+        }
+
+        if (selectedConversations > 0) {
+            val item = if (state.page is Inbox) {
+                toolbar?.menu?.findItem(R.id.archive)
+            } else {
+                toolbar?.menu?.findItem(R.id.unarchive)
+            }
+            item?.let { onOptionsItemSelected(it) }
+        } else if (toolbarSearch != null && toolbarSearch.hasFocus()) {
+            // IME mode
+        } else {
+            drawerLayout?.openDrawer(GravityCompat.START)
+        }
+    }
+
+    override fun onSk2() {
+        val state = lastState ?: return
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            return
+        }
+
+        if (toolbarSearch != null && toolbarSearch.hasFocus()) {
+            toolbarSearch.clearFocus()
+            dismissKeyboard()
+            refreshSoftkeys()
+        } else {
+            val selectedConversations = when (state.page) {
+                is Inbox -> state.page.selected
+                is Archived -> state.page.selected
+                else -> 0
+            }
+
+            if (selectedConversations > 0) {
+                openOptionsMenu()
+            } else {
+                compose.performClick()
+            }
+        }
+    }
+
+    override fun refreshSoftkeys() {
+        if (!kyoceraHelper.isReady()) return
+
+        val state = lastState ?: return
+
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                getString(R.string.sk_select),
+                getString(R.string.sk_close),
+                ""
+            )
+            return
+        }
+
+        val selectedConversations = when (state.page) {
+            is Inbox -> state.page.selected
+            is Archived -> state.page.selected
+            else -> 0
+        }
+
+        if (selectedConversations > 0) {
+            val hasArchive = state.page is Inbox
+            val sk1Label = if (hasArchive) getString(R.string.main_menu_archive) else getString(R.string.main_menu_unarchive)
+            kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                getString(R.string.sk_delete),
+                sk1Label,
+                getString(R.string.sk_options)
+            )
+        } else if (toolbarSearch != null && toolbarSearch.hasFocus()) {
+            kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                "",
+                "",
+                getString(R.string.sk_back)
+            )
+        } else {
+            val isListEmpty = conversationsAdapter.itemCount == 0
+            val cskLabel = if (isListEmpty) "" else getString(R.string.sk_open)
+            kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
+                cskLabel,
+                getString(R.string.sk_menu),
+                getString(R.string.sk_compose)
+            )
+        }
     }
 
 }

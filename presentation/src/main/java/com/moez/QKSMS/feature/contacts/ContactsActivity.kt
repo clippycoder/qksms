@@ -114,8 +114,8 @@ class ContactsActivity : QkThemedActivity(), ContactsContract {
     }
 
     override fun openKeyboard() {
-        search.postDelayed({
-            search.showKeyboard()
+        contacts.postDelayed({
+            contacts.requestFocus()
         }, 200)
     }
 

@@ -519,7 +519,14 @@ public class TransactionService extends Service implements Observer {
             }
         }
 
-        int result = mConnMgr.startUsingNetworkFeature(ConnectivityManager.TYPE_MOBILE, "enableMMS");
+        int result = -1;
+        try {
+            java.lang.reflect.Method method = mConnMgr.getClass().getMethod("startUsingNetworkFeature", int.class, String.class);
+            Object res = method.invoke(mConnMgr, ConnectivityManager.TYPE_MOBILE, "enableMMS");
+            if (res instanceof Integer) result = (Integer) res;
+        } catch (Exception e) {
+            Timber.e(e, "Failed to call startUsingNetworkFeature");
+        }
 
         Timber.v("beginMmsConnectivity: result=" + result);
 
@@ -540,9 +547,12 @@ public class TransactionService extends Service implements Observer {
             // cancel timer for renewal of lease
             mServiceHandler.removeMessages(EVENT_CONTINUE_MMS_CONNECTIVITY);
             if (mConnMgr != null && Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-                mConnMgr.stopUsingNetworkFeature(
-                        ConnectivityManager.TYPE_MOBILE,
-                        "enableMMS");
+                try {
+                    java.lang.reflect.Method method = mConnMgr.getClass().getMethod("stopUsingNetworkFeature", int.class, String.class);
+                    method.invoke(mConnMgr, ConnectivityManager.TYPE_MOBILE, "enableMMS");
+                } catch (Exception e) {
+                    Timber.e(e, "Failed to call stopUsingNetworkFeature");
+                }
             }
         } finally {
             releaseWakeLock();

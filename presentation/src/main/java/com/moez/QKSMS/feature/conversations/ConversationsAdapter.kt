@@ -74,6 +74,7 @@ class ConversationsAdapter @Inject constructor(
         }
 
         return QkViewHolder(view).apply {
+            view.isFocusable = true
             view.setOnClickListener {
                 val conversation = getItem(adapterPosition) ?: return@setOnClickListener
                 when (toggleSelection(conversation.id, false)) {

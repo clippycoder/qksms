@@ -20,9 +20,12 @@ package com.moez.QKSMS.common.base
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
+import com.moez.QKSMS.R
+import com.moez.QKSMS.common.util.KyoceraSoftkeyHelper
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.Subject
 import kotlinx.android.synthetic.main.toolbar.*
@@ -30,11 +33,58 @@ import kotlinx.android.synthetic.main.toolbar.*
 abstract class QkActivity : AppCompatActivity() {
 
     protected val menu: Subject<Menu> = BehaviorSubject.create()
+    protected val kyoceraHelper = KyoceraSoftkeyHelper()
 
     @SuppressLint("InlinedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         onNewIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        kyoceraHelper.init(
+            window,
+            onCsk = { onCsk() },
+            onSk1 = { onSk1() },
+            onSk2 = { onSk2() }
+        )
+        refreshSoftkeys()
+    }
+
+    open fun onCsk() {
+        window.currentFocus?.performClick()
+    }
+
+    open fun onSk1() {
+        // Default: no-op
+    }
+
+    open fun onSk2() {
+        openOptionsMenu()
+    }
+
+    open fun refreshSoftkeys() {
+        if (kyoceraHelper.isReady()) {
+            val cskLabel = getString(R.string.sk_select)
+            val sk1Label = ""
+            val sk2Label = "@SK_AUTO_MENU"
+            kyoceraHelper.apply(KyoceraSoftkeyHelper.PRIORITY_LIST, cskLabel, sk1Label, sk2Label)
+        }
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (kyoceraHelper.isReady()) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (event.repeatCount > 0) {
+                        window.currentFocus?.performLongClick()
+                        return true
+                    }
+                }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

@@ -40,7 +40,14 @@ class ComposeWindowCallback(
 ) : Window.Callback {
 
     override fun dispatchKeyEvent(keyEvent: KeyEvent): Boolean {
-        return localCallback.dispatchKeyEvent(keyEvent)
+        val focusBefore = activity.currentFocus?.javaClass?.simpleName ?: "null"
+        timber.log.Timber.d("FOCUS-DIAG dispatchKeyEvent: keyCode=%d action=%d focus=%s", keyEvent.keyCode, keyEvent.action, focusBefore)
+        val consumed = localCallback.dispatchKeyEvent(keyEvent)
+        val focusAfter = activity.currentFocus?.javaClass?.simpleName ?: "null"
+        if (focusBefore != focusAfter) {
+            timber.log.Timber.d("FOCUS-DIAG dispatchKeyEvent: focus CHANGED from=%s to=%s keyCode=%d", focusBefore, focusAfter, keyEvent.keyCode)
+        }
+        return consumed
     }
 
     override fun dispatchKeyShortcutEvent(keyEvent: KeyEvent): Boolean {

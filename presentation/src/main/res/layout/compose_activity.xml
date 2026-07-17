@@ -24,6 +24,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/windowBackground"
+    android:focusable="false"
+    android:focusableInTouchMode="false"
     android:orientation="vertical"
     tools:context="com.moez.QKSMS.feature.compose.ComposeActivity">
 
@@ -283,7 +285,7 @@
 
     <com.moez.QKSMS.common.widget.QkTextView
         android:id="@+id/counter"
-        android:layout_width="0dp"
+        android:layout_width="64dp"
         android:layout_height="wrap_content"
         android:layout_marginBottom="4dp"
         android:gravity="center"
@@ -367,7 +369,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:visibility="gone"
-        app:constraint_referenced_ids="contact,contactLabel,schedule,scheduleLabel,gallery,galleryLabel,camera,cameraLabel,attachingBackground" />
+        app:constraint_referenced_ids="contact,contactLabel,schedule,scheduleLabel,gallery,galleryLabel,attachingBackground" />
 
     <View
         android:id="@+id/attachingBackground"
@@ -494,7 +496,7 @@
         android:padding="10dp"
         android:src="@drawable/ic_camera_alt_black_24dp"
         android:tint="?android:attr/textColorSecondary"
-        android:visibility="visible"
+        android:visibility="gone"
         app:layout_constraintBottom_toTopOf="@id/attach"
         app:layout_constraintEnd_toEndOf="@id/attach"
         app:layout_constraintStart_toStartOf="@id/attach" />
@@ -512,6 +514,7 @@
         android:paddingEnd="8dp"
         android:text="@string/compose_camera_cd"
         android:textColor="?android:attr/textColorPrimary"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/camera"
         app:layout_constraintStart_toEndOf="@id/gallery"
         app:layout_constraintTop_toTopOf="@id/camera" />
