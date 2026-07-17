@@ -1,16 +1,8 @@
 ![QKSMS](https://user-images.githubusercontent.com/4358785/39079306-a5a409b6-44e5-11e8-8589-b4acd63b636e.jpg)
 
-# QKSMS
+# QKSMS (Custom Version)
 
-[![Build Status](https://circleci.com/gh/moezbhatti/qksms/tree/master.svg?style=svg)](https://circleci.com/gh/moezbhatti/qksms/tree/master)
-[![Crowdin](https://badges.crowdin.net/qksms/localized.svg)](https://crowdin.com/project/qksms)
-[![Liberapay donation](https://img.shields.io/badge/donate-liberapay-yellow.svg)](https://liberapay.com/moezbhatti/)
-[![Bitcoin donation](https://img.shields.io/badge/donate-bitcoin-yellow.svg)](https://qklabs.com/donate-btc/)
-[![PayPal donation](https://img.shields.io/badge/donate-paypal-yellow.svg)](https://qklabs.com/donate)
-
-QKSMS is an open source replacement to the [stock messaging app](https://github.com/android/platform_packages_apps_mms) on Android. It is currently available on the [Google Play Store](https://play.google.com/store/apps/details?id=com.moez.QKSMS) and on [F-Droid](https://f-droid.org/repository/browse/?fdid=com.moez.QKSMS)
-
-<a href="https://play.google.com/store/apps/details?id=com.moez.QKSMS"><img src="https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png" alt="Download on Google Play" height="100"></a><a href="https://f-droid.org/repository/browse/?fdid=com.moez.QKSMS"><img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="100"></a>
+This is a custom version of QKSMS, an open source replacement to the [stock messaging app](https://github.com/android/platform_packages_apps_mms) on Android.
 
 ## Reporting bugs
 
@@ -32,7 +24,7 @@ A special thank you to Jake ([@klinker41](https://github.com/klinker41)) and Luk
 
 ## Contact
 
-QKSMS is developed and maintained by [Moez Bhatti](https://github.com/moezbhatti). Feel free to reach out to moez@qklabs.com
+This custom version of QKSMS is maintained by [clippycoder](https://github.com/clippycoder). The original QKSMS was developed by [Moez Bhatti](https://github.com/moezbhatti).
 
 ## License
 
