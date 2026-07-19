@@ -41,6 +41,40 @@ abstract class QkActivity : AppCompatActivity() {
         onNewIntent(intent)
     }
 
+    private var isCenterDown = false
+    private var centerDownHandled = false
+    private val longPressRunnable = Runnable {
+        if (isCenterDown && !centerDownHandled) {
+            centerDownHandled = true
+            val focus = window.currentFocus
+            if (focus != null && focus.isLongClickable) {
+                focus.performLongClick()
+            }
+        }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (!isCenterDown) {
+                    isCenterDown = true
+                    centerDownHandled = false
+                    window.decorView.postDelayed(longPressRunnable, 500)
+                }
+                return true // Consume all DOWN events to prevent native Android repeats/clicks
+            } else if (event.action == KeyEvent.ACTION_UP) {
+                isCenterDown = false
+                window.decorView.removeCallbacks(longPressRunnable)
+                if (!centerDownHandled) {
+                    // Short press - trigger our custom softkey logic
+                    onCsk()
+                }
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onResume() {
         super.onResume()
         kyoceraHelper.init(

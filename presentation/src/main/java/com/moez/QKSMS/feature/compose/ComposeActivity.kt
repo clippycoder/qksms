@@ -161,6 +161,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         attachments.adapter = attachmentAdapter
 
         message.supportsInputContent = true
+        message.privateImeOptions = "KC_IME_RSK_LABEL:${getString(R.string.sk_details)},KC_IME_RSK_ENABLE_MIN_LENGTH:0"
 
         theme
                 .doOnNext { loading.setTint(it.theme) }
@@ -172,16 +173,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         window.callback = ComposeWindowCallback(window.callback, this)
 
-        message.setOnFocusChangeListener { _, hasFocus ->
-            val currentFocus = window.currentFocus?.javaClass?.simpleName ?: "null"
-            Timber.d("FOCUS-DIAG message.hasFocus=%b currentFocus=%s", hasFocus, currentFocus)
-            if (!hasFocus) {
-                // Capture the call stack to find what caused the focus drop
-                val stack = Thread.currentThread().stackTrace
-                    .drop(2).take(10)
-                    .joinToString("\n  ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }
-                Timber.d("FOCUS-DIAG message lost focus. Stack:\n  %s", stack)
-            }
+        message.setOnFocusChangeListener { _, _ ->
+            refreshSoftkeys()
         }
 
         // These theme attributes don't apply themselves on API 21
@@ -243,8 +236,6 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         if (state.editingMode && chips.adapter == null) chips.adapter = chipsAdapter
 
         toolbar.menu.findItem(R.id.add)?.isVisible = state.editingMode
-        toolbar.menu.findItem(R.id.call)?.isVisible = !state.editingMode && state.selectedMessages == 0
-                && state.query.isEmpty()
         toolbar.menu.findItem(R.id.info)?.isVisible = !state.editingMode && state.selectedMessages == 0
                 && state.query.isEmpty()
         toolbar.menu.findItem(R.id.copy)?.isVisible = !state.editingMode && state.selectedMessages > 0
@@ -350,6 +341,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
 
         send.isEnabled = state.canSend
         send.imageAlpha = if (state.canSend) 255 else 128
+
+        refreshSoftkeys()
     }
 
     override fun clearSelection() = messageAdapter.clearSelection()
@@ -471,7 +464,7 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     }
 
     override fun getColoredMenuItems(): List<Int> {
-        return super.getColoredMenuItems() + R.id.call
+        return super.getColoredMenuItems()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -508,13 +501,47 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         super.onRestoreInstanceState(savedInstanceState)
     }
 
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+            val keyCode = event.keyCode
+            
+            if (keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN || keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP) {
+                val focusedChild = messageList.focusedChild
+                if (focusedChild != null) {
+                    val isDown = keyCode == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                    
+                    val childLoc = IntArray(2)
+                    focusedChild.getLocationOnScreen(childLoc)
+                    val childTop = childLoc[1]
+                    val childBottom = childTop + focusedChild.height
+                    
+                    val recyclerLoc = IntArray(2)
+                    messageList.getLocationOnScreen(recyclerLoc)
+                    val recyclerTop = recyclerLoc[1]
+                    val recyclerBottom = recyclerTop + messageList.height
+
+                    if (isDown && childBottom > recyclerBottom && messageList.canScrollVertically(1)) {
+                        messageList.scrollBy(0, messageList.height / 3)
+                        return true
+                    }
+
+                    if (!isDown && childTop < recyclerTop && messageList.canScrollVertically(-1)) {
+                        messageList.scrollBy(0, -(messageList.height / 3))
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     override fun onBackPressed() = backPressedIntent.onNext(Unit)
 
     override fun onCsk() {
         val state = lastState ?: return
         val focus = window.currentFocus
         if (state.selectedMessages > 0) {
-            toolbar?.menu?.findItem(R.id.delete)?.let { onOptionsItemSelected(it) }
+            window.currentFocus?.performClick()
         } else if (focus != null && focus != messageList && focus.isClickable && focus != message) {
             focus.performClick()
         } else if (message.hasFocus()) {
@@ -530,13 +557,20 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
     override fun onSk1() {
         val state = lastState ?: return
         if (state.selectedMessages > 0) {
-            clearSelection()
+            // Do nothing, the left softkey is blank during selection mode
         } else if (!message.hasFocus()) {
             attach.performClick()
         }
     }
 
-    override fun onSk2() {}
+    override fun onSk2() {
+        val state = lastState ?: return
+        if (state.selectedMessages > 0) {
+            toolbar.showOverflowMenu()
+        } else {
+            optionsItemIntent.onNext(R.id.info)
+        }
+    }
 
     override fun refreshSoftkeys() {
         if (!kyoceraHelper.isReady()) return
@@ -545,8 +579,8 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
         when {
             state.selectedMessages > 0 -> kyoceraHelper.apply(
                 com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
-                getString(R.string.sk_delete),
-                getString(R.string.sk_deselect),
+                getString(R.string.sk_select),
+                "",
                 getString(R.string.sk_options)
             )
             state.attaching -> kyoceraHelper.apply(
@@ -555,11 +589,17 @@ class ComposeActivity : QkThemedActivity(), ComposeView {
                 "",
                 ""
             )
+            message.hasFocus() -> kyoceraHelper.apply(
+                com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_TEXT,
+                getString(R.string.sk_ok),
+                "",
+                getString(R.string.sk_details)
+            )
             else -> kyoceraHelper.apply(
                 com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
                 getString(R.string.sk_ok),
                 "",
-                ""
+                getString(R.string.sk_details)
             )
         }
     }

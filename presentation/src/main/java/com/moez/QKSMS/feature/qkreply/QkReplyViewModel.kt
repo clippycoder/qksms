@@ -117,14 +117,7 @@ class QkReplyViewModel @Inject constructor(
                     markRead.execute(listOf(threadId)) { newState { copy(hasError = true) } }
                 }
 
-        // Call
-        view.menuItemIntent
-                .filter { id -> id == R.id.call }
-                .withLatestFrom(conversation) { _, conversation -> conversation }
-                .mapNotNull { conversation -> conversation.recipients.first()?.address }
-                .doOnNext { address -> navigator.makePhoneCall(address) }
-                .autoDisposable(view.scope())
-                .subscribe { newState { copy(hasError = true) } }
+
 
         // Show all messages
         view.menuItemIntent

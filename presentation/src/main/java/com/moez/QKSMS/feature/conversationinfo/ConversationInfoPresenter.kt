@@ -149,6 +149,13 @@ class ConversationInfoPresenter @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe()
 
+        // Call the contact
+        view.callClicks()
+                .withLatestFrom(conversation) { _, conversation -> conversation }
+                .mapNotNull { conversation -> conversation.recipients.firstOrNull()?.address }
+                .autoDisposable(view.scope())
+                .subscribe { address -> navigator.makePhoneCall(address) }
+
         // Show the notifications settings for the conversation
         view.notificationClicks()
                 .withLatestFrom(conversation) { _, conversation -> conversation }

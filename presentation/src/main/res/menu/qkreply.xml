@@ -40,10 +40,6 @@
         app:showAsAction="ifRoom" />
 
     <item
-        android:id="@+id/call"
-        android:title="@string/qkreply_menu_call" />
-
-    <item
         android:id="@+id/delete"
         android:title="@string/qkreply_menu_delete" />
 

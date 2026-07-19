@@ -293,14 +293,7 @@ class ComposeViewModel @Inject constructor(
                 .autoDisposable(view.scope())
                 .subscribe { newState { copy() } }
 
-        // Open the phone dialer if the call button is clicked
-        view.optionsItemIntent
-                .filter { it == R.id.call }
-                .withLatestFrom(conversation) { _, conversation -> conversation }
-                .mapNotNull { conversation -> conversation.recipients.firstOrNull() }
-                .map { recipient -> recipient.address }
-                .autoDisposable(view.scope())
-                .subscribe { address -> navigator.makePhoneCall(address) }
+
 
         // Open the conversation settings if info button is clicked
         view.optionsItemIntent

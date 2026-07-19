@@ -477,7 +477,7 @@ class MainActivity : QkThemedActivity(), MainView {
         }
 
         if (selectedConversations > 0) {
-            toolbar?.menu?.findItem(R.id.delete)?.let { onOptionsItemSelected(it) }
+            window.currentFocus?.performClick()
         } else if (toolbarSearch != null && toolbarSearch.hasFocus()) {
             toolbarSearch.performClick()
             val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
@@ -571,7 +571,7 @@ class MainActivity : QkThemedActivity(), MainView {
             val sk1Label = if (hasArchive) getString(R.string.main_menu_archive) else getString(R.string.main_menu_unarchive)
             kyoceraHelper.apply(
                 com.moez.QKSMS.common.util.KyoceraSoftkeyHelper.PRIORITY_LIST,
-                getString(R.string.sk_delete),
+                getString(R.string.sk_select),
                 sk1Label,
                 getString(R.string.sk_options)
             )

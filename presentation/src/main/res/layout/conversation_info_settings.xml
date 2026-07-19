@@ -38,6 +38,14 @@
         app:title="@string/info_name" />
 
     <com.moez.QKSMS.common.widget.PreferenceView
+        android:id="@+id/call"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:icon="@drawable/ic_call_white_24dp"
+        app:title="@string/menu_call" />
+
+    <com.moez.QKSMS.common.widget.PreferenceView
         android:id="@+id/notifications"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

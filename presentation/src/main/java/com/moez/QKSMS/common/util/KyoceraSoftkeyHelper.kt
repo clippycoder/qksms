@@ -207,9 +207,10 @@ class KyoceraSoftkeyHelper {
                     }
                 )
             }
-
             if (onCsk != null) {
-                setListener.invoke(guideObj, INDEX_CSK, handler(onCsk))
+                // We deliberately DO NOT set the listener for the center key so that
+                // QkActivity can intercept native DPAD_CENTER events for long-press tracking.
+                // setListener.invoke(guideObj, INDEX_CSK, handler(onCsk))
             }
             if (onSk1 != null) {
                 setListener.invoke(guideObj, INDEX_SK1, handler(onSk1))
